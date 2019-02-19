@@ -1,0 +1,12 @@
+#ifndef QICALENDAR_GLOBAL_H
+#define QICALENDAR_GLOBAL_H
+
+#include <QtCore/qglobal.h>
+
+#if defined(QICALENDAR_LIBRARY)
+#  define QICALENDARSHARED_EXPORT Q_DECL_EXPORT
+#else
+#  define QICALENDARSHARED_EXPORT Q_DECL_IMPORT
+#endif
+
+#endif // QICALENDAR_GLOBAL_H
