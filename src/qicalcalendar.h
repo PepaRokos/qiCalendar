@@ -7,6 +7,7 @@
 
 #include "qicaltimezone.h"
 #include "qicalevent.h"
+#include "qicalrule.h"
 
 class QiCalCalendar : public QObject
 {
@@ -38,6 +39,10 @@ public:
     void removeEvent(QiCalEvent* event);
     void clearEvents();
 
+    QList<QiCalRule *> rules() const;
+    void setRules(const QList<QiCalRule *> &rules);
+    void addRule(QiCalRule* rule);
+
 signals:
     void prodIdChanged();
     void versionChanged();
@@ -51,6 +56,7 @@ private:
     QString m_method;
     QList<QiCalTimeZone*> m_timeZones;
     QList<QiCalEvent*> m_events;
+    QList<QiCalRule*> m_rules;
 };
 
 #endif // QICALCALENDAR_H

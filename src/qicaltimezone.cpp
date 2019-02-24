@@ -43,9 +43,7 @@ void QiCalTimeZone::setDayLight(QiCalTzInfo *dayLight)
 
 QiCalTzInfo::QiCalTzInfo(QObject *parent) : QObject(parent),
     m_offsetFrom(0),
-    m_offsetTo(0),
-    m_freq(TZ_YEARLY),
-    m_monthStart(0)
+    m_offsetTo(0)
 {
 }
 
@@ -93,35 +91,14 @@ void QiCalTzInfo::setDtStart(const QDateTime &dtStart)
     emit dtStartChanged();
 }
 
-QiCalTzInfo::Freq QiCalTzInfo::freq() const
+QiCalRule *QiCalTzInfo::rule() const
 {
-    return m_freq;
+    return m_rule;
 }
 
-void QiCalTzInfo::setFreq(const Freq &freq)
+void QiCalTzInfo::setRule(QiCalRule *rule)
 {
-    m_freq = freq;
-    emit freqChanged();
-}
-
-int QiCalTzInfo::monthStart() const
-{
-    return m_monthStart;
-}
-
-void QiCalTzInfo::setMonthStart(int monthStart)
-{
-    m_monthStart = monthStart;
-    emit monthStartChanged();
-}
-
-QString QiCalTzInfo::dayStart() const
-{
-    return m_dayStart;
-}
-
-void QiCalTzInfo::setDayStart(const QString &dayStart)
-{
-    m_dayStart = dayStart;
-    emit dayStartChanged();
+    rule->setParent(this);
+    m_rule = rule;
+    emit ruleChanged();
 }

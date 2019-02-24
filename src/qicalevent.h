@@ -5,6 +5,8 @@
 #include <QDateTime>
 #include <QString>
 
+#include "qicalrule.h"
+
 class QiCalAlarm : public QObject
 {
     Q_OBJECT
@@ -58,6 +60,7 @@ class QiCalEvent : public QObject
     Q_PROPERTY(Status status READ status WRITE setStatus NOTIFY statusChanged)
     Q_PROPERTY(Transp transp READ transp WRITE setTransp NOTIFY transpChanged)
     Q_PROPERTY(QList<QiCalAlarm*> alarms READ alarms NOTIFY alarmsChanged)
+    Q_PROPERTY(QiCalRule* rule READ rule WRITE setRule NOTIFY ruleChanged)
 public:
     enum Status
     {
@@ -116,6 +119,9 @@ public:
 
     bool operator <(const QiCalEvent &other) const;
 
+    QiCalRule *rule() const;
+    void setRule(QiCalRule *rule);
+
 signals:
     void dtStartChanged();
     void dtEndChanged();
@@ -129,6 +135,7 @@ signals:
     void statusChanged();
     void transpChanged();
     void alarmsChanged();
+    void ruleChanged();
 
 private:
     QDateTime m_dtStart;
@@ -143,6 +150,7 @@ private:
     Status m_status;
     Transp m_transp;
     QList<QiCalAlarm*> m_alarms;
+    QiCalRule* m_rule;
 };
 
 #endif // QICALEVENT_H

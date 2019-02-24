@@ -26,14 +26,16 @@ SOURCES += \
         src/qicalendar.cpp \
     src/qicalcalendar.cpp \
     src/qicaltimezone.cpp \
-    src/qicalevent.cpp
+    src/qicalevent.cpp \
+    src/qicalrule.cpp
 
 HEADERS += \
         src/qicalendar.h \
         src/qicalendar_global.h \
     src/qicalcalendar.h \
     src/qicaltimezone.h \
-    src/qicalevent.h
+    src/qicalevent.h \
+    src/qicalrule.h
 
 unix {
     target.path = /usr/lib

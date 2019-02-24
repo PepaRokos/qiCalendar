@@ -5,6 +5,8 @@
 #include <QString>
 #include <QDateTime>
 
+#include "qicalrule.h"
+
 class QiCalTzInfo : public QObject
 {
     Q_OBJECT
@@ -12,21 +14,8 @@ class QiCalTzInfo : public QObject
     Q_PROPERTY(int offsetTo READ offsetTo WRITE setOffsetTo NOTIFY offsetToChanged)
     Q_PROPERTY(QString tzName READ tzName WRITE setTzName NOTIFY tzNameChanged)
     Q_PROPERTY(QDateTime dtStart READ dtStart WRITE setDtStart NOTIFY dtStartChanged)
-    Q_PROPERTY(Freq freq READ freq WRITE setFreq NOTIFY freqChanged)
-    Q_PROPERTY(int monthStart READ monthStart WRITE setMonthStart NOTIFY monthStartChanged)
-    Q_PROPERTY(QString dayStart READ dayStart WRITE setDayStart NOTIFY dayStartChanged)
+    Q_PROPERTY(QiCalRule* rule READ rule WRITE setRule NOTIFY ruleChanged)
 public:
-    enum Freq
-    {
-        TZ_SECONDLY = 0,
-        TZ_MINUTELY,
-        TZ_HOURLY,
-        TZ_WEEKLY,
-        TZ_MONTHLY,
-        TZ_YEARLY
-    };
-    Q_ENUM(Freq)
-
     explicit QiCalTzInfo(QObject *parent = nullptr);
 
     int offsetFrom() const;
@@ -41,33 +30,22 @@ public:
     QDateTime dtStart() const;
     void setDtStart(const QDateTime &dtStart);
 
-    Freq freq() const;
-    void setFreq(const Freq &freq);
-
-    int monthStart() const;
-    void setMonthStart(int monthStart);
-
-    QString dayStart() const;
-    void setDayStart(const QString &dayStart);
+    QiCalRule *rule() const;
+    void setRule(QiCalRule *rule);
 
 signals:
     void offsetFromChanged();
     void offsetToChanged();
     void tzNameChanged();
     void dtStartChanged();
-    void freqChanged();
-    void monthStartChanged();
-    void dayStartChanged();
+    void ruleChanged();
 
 private:
     int m_offsetFrom;
     int m_offsetTo;
     QString m_tzName;
     QDateTime m_dtStart;
-    Freq m_freq;
-    int m_monthStart;
-    QString m_dayStart;
-
+    QiCalRule* m_rule;
 };
 
 class QiCalTimeZone : public QObject

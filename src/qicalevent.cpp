@@ -162,6 +162,18 @@ bool QiCalEvent::operator <(const QiCalEvent &other) const
     return dtStart() < other.dtStart();
 }
 
+QiCalRule *QiCalEvent::rule() const
+{
+    return m_rule;
+}
+
+void QiCalEvent::setRule(QiCalRule *rule)
+{
+    rule->setParent(this);
+    m_rule = rule;
+    emit ruleChanged();
+}
+
 QiCalAlarm::QiCalAlarm(QObject *parent) : QObject(parent),
     m_action(ACT_AUDIO)
 {

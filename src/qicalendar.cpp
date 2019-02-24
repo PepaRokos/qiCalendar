@@ -33,7 +33,7 @@ QiCalendarParser::QiCalendarParser() :
                   m_calendar->timeZones().last()->setStandard(new QiCalTzInfo());
                   m_state.push(QiCalendarParser::CAL_TZINFO_STD);}},
              {"DAYLIGHT", [&](){
-                  m_calendar->timeZones().last()->setStandard(new QiCalTzInfo());
+                  m_calendar->timeZones().last()->setDayLight(new QiCalTzInfo());
                   m_state.push(QiCalendarParser::CAL_TZINFO_DAYLIGHT);}}
          }
         },
@@ -70,7 +70,7 @@ QiCalendarParser::QiCalendarParser() :
               {"TZOFFSETTO", VCAL_INTEGER("offsetTo")},
               {"TZNAME", VCAL_STRING("tzName")},
               {"DTSTART", VCAL_DATETIME("dtStart")},
-              {"RULE", VCAL_TZRULE},
+              {"RRULE", VCAL_TZRULE},
               {"END", VCAL_END}
           }
         },
@@ -79,7 +79,7 @@ QiCalendarParser::QiCalendarParser() :
               {"TZOFFSETTO", VCAL_INTEGER("offsetTo")},
               {"TZNAME", VCAL_STRING("tzName")},
               {"DTSTART", VCAL_DATETIME("dtStart")},
-              {"RULE", VCAL_TZRULE},
+              {"RRULE", VCAL_TZRULE},
               {"END", VCAL_END}
           }
         },
@@ -93,13 +93,17 @@ QiCalendarParser::QiCalendarParser() :
               {"DESCRIPTION", VCAL_STRING("description")},
               {"SUMMARY", VCAL_STRING("summary")},
               {"LAST-MODIFIED", VCAL_DATETIME("lastModified")},
-              {"LOCATION", VCAL_STRING("location")},
+              {"STATUS", VCAL_EVTSTATUS},
+              {"TRANSP", VCAL_EVTTRANSP},
+              {"RRULE", VCAL_TZRULE},
               {"END", VCAL_END}
           }
 
         },
         { CAL_ALARM, {
               {"DESCRIPTION", VCAL_STRING("description")},
+              {"ACTION", VCAL_ALARMACTION},
+              {"TRIGGER", VCAL_STRING("trigger")},
               {"END", VCAL_END}
           }
         }
@@ -107,20 +111,46 @@ QiCalendarParser::QiCalendarParser() :
 
     m_tzRules = {
         { "FREQ", [&](const QString& value){
-              QMap<QString, QiCalTzInfo::Freq> freqs = {
-                  {"SECONDLY", QiCalTzInfo::TZ_SECONDLY},
-                  {"MINUTELY", QiCalTzInfo::TZ_MINUTELY},
-                  {"HOURLY", QiCalTzInfo::TZ_HOURLY},
-                  {"WEEKLY", QiCalTzInfo::TZ_WEEKLY},
-                  {"MONTHLY", QiCalTzInfo::TZ_MONTHLY},
-                  {"YEARLY", QiCalTzInfo::TZ_YEARLY}
+              QHash<QString, QiCalRule::Freq> freqs = {
+                  {"SECONDLY", QiCalRule::TZ_SECONDLY},
+                  {"MINUTELY", QiCalRule::TZ_MINUTELY},
+                  {"HOURLY", QiCalRule::TZ_HOURLY},
+                  {"WEEKLY", QiCalRule::TZ_WEEKLY},
+                  {"MONTHLY", QiCalRule::TZ_MONTHLY},
+                  {"YEARLY", QiCalRule::TZ_YEARLY}
               };
 
               setObjectValue("freq", freqs[value]);
           }
         },
-        { "BYMONTH", VCAL_INTEGER("monthStart")},
-        { "BYDAY", VCAL_STRING("dayStart")}
+        { "BYMONTH", VCAL_INTEGER("monthList")},
+        { "BYDAY", VCAL_STRING("dayList")},
+        { "BYHOUR", VCAL_STRING("hourList")},
+        { "BYMINUTE", VCAL_STRING("minuteList")},
+        { "BYMONTHDAY", VCAL_STRING("monthDayList")},
+        { "BYSECOND", VCAL_STRING("secondList")},
+        { "BYSETPOS", VCAL_STRING("setposList")},
+        { "WKST", VCAL_STRING("wkstList")},
+        { "INTERVAL", VCAL_INTEGER("interval")},
+        { "COUNT", VCAL_INTEGER("count")},
+        { "UNTIL", VCAL_DATETIME("until")}
+    };
+
+    m_alActions = {
+        { "AUDIO", QiCalAlarm::ACT_AUDIO },
+        { "DISPLAY", QiCalAlarm::ACT_DISPLAY },
+        { "EMAIL", QiCalAlarm::ACT_EMAIL }
+    };
+
+    m_evtStatuses = {
+        { "TENTATIVE", QiCalEvent::STAT_TENTATIVE },
+        { "CONFIRMED", QiCalEvent::STAT_CONFIRMED },
+        { "CANCELLED", QiCalEvent::STAT_CANCELLED }
+    };
+
+    m_evtTransps = {
+        { "OPAQUE", QiCalEvent::TRANS_OPAQUE },
+        { "TRANSPARENT", QiCalEvent::TRANS_TRANSPARENT }
     };
 }
 
@@ -147,10 +177,23 @@ bool QiCalendarParser::parseFile(const QString &filePath)
         QString line(lineData);
         QStringList cmdVal = line.split(":");
 
-        if (cmdVal.size() > 1 && m_keyWords[m_state.top()][cmdVal[0]])
+        if (cmdVal.size() > 1)
         {
-            QString value = cmdVal[1].trimmed();
-            m_keyWords[m_state.top()][cmdVal[0]](value);
+            QString cmd = cmdVal[0];
+            if (!m_keyWords[m_state.top()][cmd] && cmd.startsWith("DT"))
+            {
+                QStringList dtCmd = cmd.split(";");
+                if (dtCmd.size() > 1)
+                {
+                    cmd = dtCmd[0];
+                }
+            }
+
+            if (m_keyWords[m_state.top()][cmd])
+            {
+                QString value = cmdVal[1].trimmed();
+                m_keyWords[m_state.top()][cmd](value);
+            }
         }
 
         lineData = file.readLine();
@@ -209,7 +252,12 @@ void QiCalendarParser::parseDate(const QString &propertyName, const QString &val
 
     if (!date.isValid())
     {
-        date = QDateTime::fromString("01.01.1970T000000", "ddMMyyyyThhmmss");
+        date = QDateTime::fromString(value, "yyyyMMdd");
+    }
+
+    if (!date.isValid())
+    {
+        date = QDateTime::fromString("01011970T000000", "ddMMyyyyThhmmss");
     }
 
     setObjectValue(propertyName, date);
@@ -217,6 +265,23 @@ void QiCalendarParser::parseDate(const QString &propertyName, const QString &val
 
 void QiCalendarParser::parseTzRule(const QString &value)
 {
+    QiCalRule* rule = new QiCalRule();
+    if (!currentObject()->setProperty("rule", QVariant::fromValue(rule)))
+    {
+        delete rule;
+        return;
+    }
+
+    QiCalEvent* evt = qobject_cast<QiCalEvent*>(currentObject());
+
+    if (evt != nullptr)
+    {
+        rule->setCalEvent(evt);
+        m_calendar->addRule(rule);
+    }
+
+    m_state.push(CAL_RRULE);
+
     QStringList params = value.split(";");
 
     for (QString param : params)
@@ -227,6 +292,23 @@ void QiCalendarParser::parseTzRule(const QString &value)
             m_tzRules[values[0]](values[1]);
         }
     }
+
+    m_state.pop();
+}
+
+void QiCalendarParser::parseAlarmAction(const QString &value)
+{
+    setObjectValue("action", m_alActions[value]);
+}
+
+void QiCalendarParser::parseEvtStatus(const QString &value)
+{
+    setObjectValue("status", m_evtStatuses[value]);
+}
+
+void QiCalendarParser::parseEvtTransp(const QString &value)
+{
+    setObjectValue("transp", m_evtTransps[value]);
 }
 
 void QiCalendarParser::setObjectValue(const QString &propertyName, const QVariant &value)
@@ -251,20 +333,36 @@ void QiCalendarParser::switchState(const QString &state)
 
 QObject *QiCalendarParser::currentObject()
 {
-    switch (m_state.top()) {
-    case CAL_CALENDAR:
-        return m_calendar;
-    case CAL_TIMEZONE:
-        return m_calendar->timeZones().last();
-    case CAL_TZINFO_STD:
-        return m_calendar->timeZones().last()->standard();
-    case CAL_TZINFO_DAYLIGHT:
-        return m_calendar->timeZones().last()->dayLight();
-    case CAL_EVENT:
-        return m_calendar->events().last();
-    case CAL_ALARM:
-        return m_calendar->events().last()->alarms().last();
-    default:
-        return nullptr;
+    auto stateObject = [&](State state) -> QObject* {
+        switch (state) {
+        case CAL_CALENDAR:
+            return m_calendar;
+        case CAL_TIMEZONE:
+            return m_calendar->timeZones().last();
+        case CAL_TZINFO_STD:
+            return m_calendar->timeZones().last()->standard();
+        case CAL_TZINFO_DAYLIGHT:
+            return m_calendar->timeZones().last()->dayLight();
+        case CAL_EVENT:
+            return m_calendar->events().last();
+        case CAL_ALARM:
+            return m_calendar->events().last()->alarms().last();
+        default:
+            return nullptr;
+        }
+    };
+
+    if (m_state.top() != CAL_RRULE)
+    {
+        return stateObject(m_state.top());
     }
+
+    QVariant var = stateObject(m_state[m_state.count() - 2])->property("rule");
+
+    if (!var.isNull())
+    {
+        return qvariant_cast<QObject*>(var);
+    }
+
+    return nullptr;
 }

@@ -97,3 +97,18 @@ void QiCalCalendar::clearEvents()
     m_events.clear();
     emit eventsChanged();
 }
+
+QList<QiCalRule *> QiCalCalendar::rules() const
+{
+    return m_rules;
+}
+
+void QiCalCalendar::setRules(const QList<QiCalRule *> &rules)
+{
+    m_rules = rules;
+}
+
+void QiCalCalendar::addRule(QiCalRule *rule)
+{
+    m_rules.push_back(rule);
+}
