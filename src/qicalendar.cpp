@@ -45,6 +45,15 @@ QiCalendarParser::QiCalendarParser() :
         },
     };
 
+    m_stateMap = {
+        {"VCALENDAR", CAL_CALENDAR},
+        {"VTIMEZONE", CAL_TIMEZONE},
+        {"STANDARD", CAL_TZINFO_STD},
+        {"DAYLIGHT", CAL_TZINFO_DAYLIGHT},
+        {"VEVENT", CAL_EVENT},
+        {"VALARM", CAL_ALARM}
+    };
+
     m_keyWords = {
         { CAL_ROOT, {
               {"BEGIN", VCAL_BEGIN},
@@ -328,6 +337,14 @@ void QiCalendarParser::switchState(const QString &state)
     if (switchFn)
     {
         switchFn();
+    }
+}
+
+void QiCalendarParser::endState(const QString &state)
+{
+    if (m_stateMap[state] == m_state.top())
+    {
+        m_state.pop();
     }
 }
 

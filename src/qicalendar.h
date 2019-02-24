@@ -46,6 +46,7 @@ private:
     void setObjectValue(const QString& propertyName, const QVariant& value);
 
     void switchState(const QString& state);
+    void endState(const QString& state);
     QObject *currentObject();
 
     QHash<State, QHash<QString, std::function<void(const QString&)> > > m_keyWords;
@@ -54,13 +55,14 @@ private:
     QHash<QString, QiCalAlarm::Action> m_alActions;
     QHash<QString, QiCalEvent::Status> m_evtStatuses;
     QHash<QString, QiCalEvent::Transp> m_evtTransps;
+    QHash<QString, State> m_stateMap;
     QStack<State> m_state;
 
     QiCalCalendar* m_calendar;
 };
 
 #define VCAL_BEGIN std::bind(&QiCalendarParser::switchState, this, _1)
-#define VCAL_END [&](const QString&){ m_state.pop(); }
+#define VCAL_END [&](const QString& val){ endState(val); }
 #define VCAL_STRING(prop) [&](const QString& val){ parseString(prop, val); }
 #define VCAL_INTEGER(prop) [&](const QString& val){ parseInt(prop, val); }
 #define VCAL_DATETIME(prop) [&](const QString& val){ parseDate(prop, val); }
