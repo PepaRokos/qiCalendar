@@ -33,18 +33,18 @@ class QiCalRule : public QObject
     Q_PROPERTY(QString monthList READ monthList WRITE setMonthList)
     Q_PROPERTY(QList<qint32> bySetPos READ bySetPos WRITE setBySetPos NOTIFY bySetPosChanged)
     Q_PROPERTY(QString setposList READ setposList WRITE setSetposList)
-    Q_PROPERTY(QList<QString> wkst READ wkst WRITE setWkst NOTIFY wkstChanged)
-    Q_PROPERTY(QString wkstList READ wkstList WRITE setWkstList)
+    Q_PROPERTY(QString wkst READ wkst WRITE setWkst NOTIFY wkstChanged)
     Q_PROPERTY(QiCalEvent* calEvent READ calEvent WRITE setCalEvent NOTIFY calEventChanged)
 public:
     enum Freq
     {
-        TZ_SECONDLY = 0,
-        TZ_MINUTELY,
-        TZ_HOURLY,
-        TZ_WEEKLY,
-        TZ_MONTHLY,
-        TZ_YEARLY
+        RR_SECONDLY = 0,
+        RR_MINUTELY,
+        RR_HOURLY,
+        RR_DAILY,
+        RR_WEEKLY,
+        RR_MONTHLY,
+        RR_YEARLY
     };
     Q_ENUM(Freq)
 
@@ -107,10 +107,8 @@ public:
     void setSetposList(const QString& pos);
     QString setposList() const;
 
-    QList<QString> wkst() const;
-    void setWkst(const QList<QString> &wkst);
-    void setWkstList(const QString& wkst);
-    QString wkstList() const;
+    QString wkst() const;
+    void setWkst(const QString &wkst);
 
     QiCalEvent *calEvent() const;
     void setCalEvent(QiCalEvent *event);
@@ -146,7 +144,7 @@ private:
     QList<qint32> m_byWeekNo;
     QList<qint32> m_byMonth;
     QList<qint32> m_bySetPos;
-    QList<QString> m_wkst;
+    QString m_wkst;
     QiCalEvent *m_event;
 
     void fillIntList(const QString& strList, QList<qint32>& list);

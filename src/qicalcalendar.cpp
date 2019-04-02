@@ -68,7 +68,7 @@ void QiCalCalendar::clearTimeZones()
     emit timeZonesChanged();
 }
 
-QList<QiCalEvent *> QiCalCalendar::events() const
+const QList<QiCalEvent *> &QiCalCalendar::events() const
 {
     return m_events;
 }

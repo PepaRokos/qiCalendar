@@ -38,7 +38,7 @@ private:
     void parseString(const QString& propertyName, const QString& value);
     void parseInt(const QString& propertyName, const QString& value);
     void parseDate(const QString& propertyName, const QString& value);
-    void parseTzRule(const QString& value);
+    void parseRule(const QString& value);
     void parseAlarmAction(const QString& value);
     void parseEvtStatus(const QString& value);
     void parseEvtTransp(const QString& value);
@@ -49,13 +49,17 @@ private:
     void endState(const QString& state);
     QObject *currentObject();
 
+    QList<QiCalEvent*> genRuleEvents(const QDateTime& from, const QDateTime& to);
+
     QHash<State, QHash<QString, std::function<void(const QString&)> > > m_keyWords;
     QHash<State, QHash<QString, std::function<void()> > > m_states;
-    QHash<QString, std::function<void(const QString&)> > m_tzRules;
+    QHash<QString, std::function<void(const QString&)> > m_rRules;
     QHash<QString, QiCalAlarm::Action> m_alActions;
     QHash<QString, QiCalEvent::Status> m_evtStatuses;
     QHash<QString, QiCalEvent::Transp> m_evtTransps;
     QHash<QString, State> m_stateMap;
+    QHash<int, QString> m_weekDays;
+    QHash<QString, QStringList> m_wkst;
     QStack<State> m_state;
 
     QiCalCalendar* m_calendar;
@@ -66,7 +70,7 @@ private:
 #define VCAL_STRING(prop) [&](const QString& val){ parseString(prop, val); }
 #define VCAL_INTEGER(prop) [&](const QString& val){ parseInt(prop, val); }
 #define VCAL_DATETIME(prop) [&](const QString& val){ parseDate(prop, val); }
-#define VCAL_TZRULE [&](const QString& val){ parseTzRule(val); }
+#define VCAL_TZRULE [&](const QString& val){ parseRule(val); }
 #define VCAL_ALARMACTION [&](const QString& val){ parseAlarmAction(val); }
 #define VCAL_EVTSTATUS [&](const QString& val){ parseEvtStatus(val); }
 #define VCAL_EVTTRANSP [&](const QString& val){ parseEvtTransp(val); }

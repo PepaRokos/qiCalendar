@@ -6,6 +6,9 @@
 #include <QDebug>
 #include <algorithm>
 #include <QtAlgorithms>
+#include <thread>
+#include <future>
+#include <tuple>
 
 using namespace std::placeholders;
 
@@ -118,15 +121,16 @@ QiCalendarParser::QiCalendarParser() :
         }
     };
 
-    m_tzRules = {
+    m_rRules = {
         { "FREQ", [&](const QString& value){
               QHash<QString, QiCalRule::Freq> freqs = {
-                  {"SECONDLY", QiCalRule::TZ_SECONDLY},
-                  {"MINUTELY", QiCalRule::TZ_MINUTELY},
-                  {"HOURLY", QiCalRule::TZ_HOURLY},
-                  {"WEEKLY", QiCalRule::TZ_WEEKLY},
-                  {"MONTHLY", QiCalRule::TZ_MONTHLY},
-                  {"YEARLY", QiCalRule::TZ_YEARLY}
+                  {"SECONDLY", QiCalRule::RR_SECONDLY},
+                  {"MINUTELY", QiCalRule::RR_MINUTELY},
+                  {"HOURLY", QiCalRule::RR_HOURLY},
+                  {"DAILY", QiCalRule::RR_DAILY},
+                  {"WEEKLY", QiCalRule::RR_WEEKLY},
+                  {"MONTHLY", QiCalRule::RR_MONTHLY},
+                  {"YEARLY", QiCalRule::RR_YEARLY}
               };
 
               setObjectValue("freq", freqs[value]);
@@ -139,7 +143,7 @@ QiCalendarParser::QiCalendarParser() :
         { "BYMONTHDAY", VCAL_STRING("monthDayList")},
         { "BYSECOND", VCAL_STRING("secondList")},
         { "BYSETPOS", VCAL_STRING("setposList")},
-        { "WKST", VCAL_STRING("wkstList")},
+        { "WKST", VCAL_STRING("wkst")},
         { "INTERVAL", VCAL_INTEGER("interval")},
         { "COUNT", VCAL_INTEGER("count")},
         { "UNTIL", VCAL_DATETIME("until")}
@@ -160,6 +164,22 @@ QiCalendarParser::QiCalendarParser() :
     m_evtTransps = {
         { "OPAQUE", QiCalEvent::TRANS_OPAQUE },
         { "TRANSPARENT", QiCalEvent::TRANS_TRANSPARENT }
+    };
+
+    m_weekDays = {
+        { Qt::Monday, "MO" },
+        { Qt::Tuesday, "TU" },
+        { Qt::Wednesday, "WE" },
+        { Qt::Thursday, "TH" },
+        { Qt::Friday, "FR" },
+        { Qt::Saturday, "SA" },
+        { Qt::Sunday, "SU" }
+    };
+
+    m_wkst = {
+        { "SA", {"SA", "SU", "MO", "TU", "WE", "TH", "FR"} },
+        { "SU", {"SU", "MO", "TU", "WE", "TH", "FR", "SA"} },
+        { "MO", {"MO", "TU", "WE", "TH", "FR", "SA", "SU"} }
     };
 }
 
@@ -227,6 +247,8 @@ QList<QiCalEvent *> QiCalendarParser::eventsFrom(const QDateTime &from)
 
 QList<QiCalEvent *> QiCalendarParser::eventsRange(const QDateTime &from, const QDateTime &to)
 {
+    //auto ruleEvents = std::async(std::launch::async, [&](){ return genRuleEvents(from, to); });
+
     QList<QiCalEvent*> ret;
     for (QiCalEvent* ev : m_calendar->events())
     {
@@ -235,6 +257,11 @@ QList<QiCalEvent *> QiCalendarParser::eventsRange(const QDateTime &from, const Q
             ret.push_back(ev);
         }
     }
+
+    ret.append(genRuleEvents(from, to));
+    std::sort(ret.begin(), ret.end(), [](QiCalEvent* eventA, QiCalEvent* eventB) {
+        return eventA->dtStart() < eventB->dtStart();
+    });
 
     return ret;
 }
@@ -272,7 +299,7 @@ void QiCalendarParser::parseDate(const QString &propertyName, const QString &val
     setObjectValue(propertyName, date);
 }
 
-void QiCalendarParser::parseTzRule(const QString &value)
+void QiCalendarParser::parseRule(const QString &value)
 {
     QiCalRule* rule = new QiCalRule();
     if (!currentObject()->setProperty("rule", QVariant::fromValue(rule)))
@@ -296,9 +323,9 @@ void QiCalendarParser::parseTzRule(const QString &value)
     for (QString param : params)
     {
         QStringList values = param.split("=");
-        if (values.count() == 2 && m_tzRules[values[0]])
+        if (values.count() == 2 && m_rRules[values[0]])
         {
-            m_tzRules[values[0]](values[1]);
+            m_rRules[values[0]](values[1]);
         }
     }
 
@@ -382,4 +409,333 @@ QObject *QiCalendarParser::currentObject()
     }
 
     return nullptr;
+}
+
+QList<QiCalEvent *> QiCalendarParser::genRuleEvents(const QDateTime &from, const QDateTime &to)
+{
+    QList<QiCalEvent*> result;
+
+    const auto addEvent = [&](QiCalRule* rule, const QDateTime& current) {
+        QiCalEvent* event = new QiCalEvent(m_calendar);
+        event->setCreated(rule->calEvent()->created());
+        event->setDescription(rule->calEvent()->description());
+        if (rule->calEvent()->dtEnd().isValid())
+        {
+            QDateTime dtEnd = current;
+            dtEnd.setTime(rule->calEvent()->dtEnd().time());
+            event->setDtEnd(dtEnd.addDays(rule->calEvent()->dtStart().daysTo(rule->calEvent()->dtEnd())));
+        }
+        event->setDtStart(QDateTime(current.date(), rule->calEvent()->dtStart().time()));
+        event->setDtStamp(rule->calEvent()->dtStamp());
+        event->setLastModified(rule->calEvent()->lastModified());
+        event->setLocation(rule->calEvent()->location());
+        event->setStatus(rule->calEvent()->status());
+        event->setSummary(rule->calEvent()->summary());
+        event->setTransp(rule->calEvent()->transp());
+        event->setUid(rule->calEvent()->uid());
+
+        result.push_back(event);
+    };
+
+    const auto calcEnd = [&to](QiCalRule* rule, QDateTime&& countEnd) -> QDateTime {
+        QDateTime endDate;
+        if (rule->count() > -1)
+        {
+            endDate = countEnd;
+        }
+        if ((rule->until().isValid() && endDate.isValid() && rule->until() < endDate)
+                || (rule->until().isValid() && !endDate.isValid()))
+        {
+            endDate = rule->until();
+        }
+
+        if (!endDate.isValid())
+        {
+            endDate = to;
+        }
+
+        return endDate;
+    };
+
+    const auto dayWithOrder = [](const QString& byDay) -> std::tuple<qint8, QString> {
+        QString day = byDay.right(2);
+        QString num = QString(byDay).replace(day, "");
+        qint8 dayOrder = num.toInt();
+
+        return std::make_tuple(dayOrder, day);
+    };
+
+    const auto dayList = [&](QiCalRule* rule, const QDate& curDate) -> QList<QDate> {
+        QList<QDate> retList;
+        for (quint8 day : rule->byMonthDay())
+        {
+            QDate date(curDate.year(), curDate.month(), day);
+            retList << date;
+        }
+
+        for (const QString& byDay : rule->byDay())
+        {
+            QString day;
+            qint8 dayOrder = 0;
+            std::tie(dayOrder, day) = dayWithOrder(byDay);
+
+            auto it = std::find_if(m_weekDays.begin(), m_weekDays.end(), [&day](const auto& dayName) {
+                return dayName == day;
+            });
+
+            if (it == m_weekDays.end())
+            {
+                continue;
+            }
+
+            Qt::DayOfWeek dow = (Qt::DayOfWeek)it.key();
+            QDate firstDay = QDate(curDate.year(), curDate.month(), 1);
+            qint8 firstOffset = dow - firstDay.dayOfWeek();
+            firstOffset = firstOffset >= 0 ? firstOffset : 7 + firstOffset;
+            QDate lastDay = QDate(curDate.year(), curDate.month() + 1, 1).addDays(-1);
+            quint8 lastOffset = lastDay.dayOfWeek() - dow;
+            lastOffset = lastOffset > 0 ? lastOffset : 7 + lastOffset;
+
+            if (dayOrder > 0)
+            {
+                retList << firstDay.addDays(firstOffset + 7 * (dayOrder - 1));
+            }
+            else if (dayOrder < 0)
+            {
+                retList << lastDay.addDays(-(lastOffset + 7 * (dayOrder -1)));
+            }
+            else
+            {
+                QDate resDate(curDate.year(), curDate.month(), firstOffset);
+                while (resDate.month() == curDate.month())
+                {
+                    retList << resDate;
+                    resDate = resDate.addDays(7);
+                }
+            }
+        }
+
+        if (retList.isEmpty())
+        {
+            QDate date(curDate.year(), curDate.month(), rule->calEvent()->dtStart().date().day());
+            retList << date;
+        }
+
+        std::sort(retList.begin(), retList.end());
+
+        return retList;
+    };
+
+    for (QiCalRule* rule : m_calendar->rules())
+    {
+        if (rule->calEvent() == nullptr)
+        {
+            continue;
+        }
+
+        QDateTime start = rule->calEvent()->dtStart();
+        switch (rule->freq()) {
+        case QiCalRule::RR_DAILY:
+        {
+            QDateTime endDate(calcEnd(rule, start.addDays(rule->count() * rule->interval() - 1)));
+            QDateTime current = from;
+
+            while (current <= endDate)
+            {
+                if (start.daysTo(current) % rule->interval() == 0)
+                {
+                    addEvent(rule, current);
+                    current = current.addDays(rule->interval());
+                }
+                else
+                {
+                    current = current.addDays(1);
+                }
+            }
+            break;
+        }
+        case QiCalRule::RR_WEEKLY:
+        {
+            QDateTime endDate(calcEnd(rule, start.addDays(rule->count() * 7 * rule->interval() - 7)));
+            QDateTime current = from;
+            QStringList wkst;
+            int dayOffsets[7] = { 0 };
+
+            if (rule->byDay().count() > 1 && !rule->wkst().isEmpty())
+            {
+                wkst = m_wkst[rule->wkst()];
+                QList<quint16> dayNums;
+
+                for (const QString& day : rule->byDay())
+                {
+                    dayNums << wkst.indexOf(day);
+                }
+
+                std::sort(dayNums.begin(), dayNums.end());
+
+                for (int i = 0; i < dayNums.count(); i++)
+                {
+                    if (i == dayNums.count() - 1)
+                    {
+                        dayOffsets[dayNums[i]] = 7 - dayNums[i] + 7 * (rule->interval() - 1);
+                    }
+                    else
+                    {
+                        dayOffsets[dayNums[i]] = dayNums[i + 1] - dayNums[i];
+                    }
+                }
+            }
+
+            QStringList days = rule->byDay();
+
+            if (days.isEmpty())
+            {
+                days << m_weekDays[start.date().dayOfWeek()];
+            }
+
+            while (current <= endDate)
+            {
+                if (days.contains(m_weekDays[current.date().dayOfWeek()]) && (start.daysTo(current) / 7) % rule->interval() == 0)
+                {
+                    addEvent(rule, current);
+                    current = current.addDays(wkst.isEmpty() ? 7 * rule->interval() : dayOffsets[wkst.indexOf(m_weekDays[current.date().dayOfWeek()])]);
+                }
+                else if (days.contains(m_weekDays[current.date().dayOfWeek()]) && (start.daysTo(current) / 7) % rule->interval() != 0)
+                {
+                    current = current.addDays(wkst.isEmpty() ? 7 : dayOffsets[wkst.indexOf(m_weekDays[current.date().dayOfWeek()])]);
+                }
+                else
+                {
+                    current = current.addDays(1);
+                }
+            }
+            break;
+        }
+        case QiCalRule::RR_MONTHLY:
+        {
+            QDateTime endDate(calcEnd(rule, start.addMonths(rule->count() * rule->interval() - 1)));
+            QDateTime current = from;
+
+            QList<QDate> dates;
+            quint8 month = 0;
+            while (current <= endDate)
+            {
+                if ( ((current.date().month() - start.date().month()) % rule->interval() != 0)
+                        || (!rule->byMonth().isEmpty() && !rule->byMonth().contains(current.date().month())) )
+                {
+                    current = current.addMonths(1);
+                    continue;
+                }
+
+                if (month != current.date().month())
+                {
+                    dates = dayList(rule, current.date());
+                    month = current.date().month();
+                }
+
+                if (dates.contains(current.date()))
+                {
+                    addEvent(rule, current);
+                    dates.removeOne(current.date());
+                }
+
+                if (dates.isEmpty() && endDate.date().month() < month + 1)
+                {
+                    break;
+                }
+
+                current = current.addDays(1);
+            }
+            break;
+        }
+        case QiCalRule::RR_YEARLY:
+        {
+            QDateTime endDate(calcEnd(rule, start.addYears(rule->count() * rule->interval() - 1)));
+            QDateTime current = from;
+            quint8 month = 0;
+            QList<QDate> dates;
+
+            while (current <= endDate)
+            {
+                if ((current.date().year() - start.date().year()) % rule->interval() != 0)
+                {
+                    current = current.addYears(1);
+                    continue;
+                }
+
+                QList<qint32> weeks = rule->byWeekNo();
+                std::sort(weeks.begin(), weeks.end());
+
+                if (month != current.date().month())
+                {
+                    dates = dayList(rule, current.date());
+                    month = current.date().month();
+                }
+
+                // by weekno
+                if (weeks.contains(current.date().weekNumber()) && dates.contains(current.date()))
+                {
+                    addEvent(rule, current);
+
+                    if (rule->byDay().count() > 1)
+                    {
+                        current = current.addDays(1);
+                    }
+                    else if (weeks.count() > 1 && weeks.indexOf(current.date().weekNumber()) < weeks.count() - 1)
+                    {
+                        current = current.addDays((weeks[weeks.indexOf(current.date().weekNumber()) + 1] - current.date().weekNumber()) * 7);
+                    }
+                    else
+                    {
+                        current = current.addYears(1);
+                    }
+
+                    continue;
+                }
+
+                QList<qint32> months = rule->byMonth();
+                std::sort(months.begin(), months.end());
+
+                // by month
+                if (months.contains(current.date().month()) && dates.contains(current.date()))
+                {
+                    addEvent(rule, current);
+
+                    if (rule->byDay().count() > 1 || rule->byMonthDay().count() > 1)
+                    {
+                        current = current.addDays(1);
+                    }
+                    else if (months.count() > 1 && months.indexOf(current.date().month()) < months.count() - 1)
+                    {
+                        current.setDate(QDate(current.date().year(), current.date().month() + 1, 1));
+                    }
+                    else
+                    {
+                        current = current.addYears(1);
+                    }
+
+                    continue;
+                }
+
+                QDate eventDate = rule->calEvent()->dtStart().date();
+                QDate currentEventDate(current.date().year(), eventDate.month(), eventDate.day());
+
+                if (current.date() <= currentEventDate && currentEventDate <= endDate.date())
+                {
+                    QDateTime eventDateTime = rule->calEvent()->dtStart();
+                    eventDateTime.setDate(currentEventDate);
+                    addEvent(rule, eventDateTime);
+                }
+
+                current = current.addYears(1);
+            }
+
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    return result;
 }

@@ -2,7 +2,8 @@
 
 QiCalRule::QiCalRule(QObject *parent) : QObject(parent),
     m_count(-1),
-    m_interval(-1)
+    m_interval(1),
+    m_event(nullptr)
 {
 }
 
@@ -248,26 +249,15 @@ QString QiCalRule::setposList() const
     return getIntList(m_bySetPos);
 }
 
-QList<QString> QiCalRule::wkst() const
+QString QiCalRule::wkst() const
 {
     return m_wkst;
 }
 
-void QiCalRule::setWkst(const QList<QString> &Wkst)
+void QiCalRule::setWkst(const QString &Wkst)
 {
     m_wkst = Wkst;
     emit wkstChanged();
-}
-
-void QiCalRule::setWkstList(const QString &wkst)
-{
-    m_wkst = wkst.split(",");
-    emit wkstChanged();
-}
-
-QString QiCalRule::wkstList() const
-{
-    return getStringList(m_wkst);
 }
 
 QiCalEvent *QiCalRule::calEvent() const

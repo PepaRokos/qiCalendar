@@ -34,7 +34,7 @@ public:
     void removeTimeZone(QiCalTimeZone* timeZone);
     void clearTimeZones();
 
-    QList<QiCalEvent *> events() const;
+    const QList<QiCalEvent *>& events() const;
     void addEvent(QiCalEvent* event);
     void removeEvent(QiCalEvent* event);
     void clearEvents();
